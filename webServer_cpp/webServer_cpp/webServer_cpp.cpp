@@ -22,7 +22,7 @@
 int init(WSADATA wsaData);
 SOCKET makeBaseSocket(SOCKET serverSocket);
 DWORD WINAPI processSocket(LPVOID param);
-void inBufAnalyzer(char szInBuf[], char midBuffer1[], char midBuffer2[]);
+void inBufAnalyzer(char szInBuf[], char midBuffer1[], char midBuffer2[], char midBuffer3[], char midBuffer4[]);
 //std::string httpReturn( std::string szBuf, char szInBuf[] );
 std::vector<std::string> stringSplit(std::string& str, std::string separators );
 
@@ -94,26 +94,28 @@ DWORD WINAPI processSocket(LPVOID param)
 
 	char szMidBuf1[STR_BUFF]={0,};
 	char szMidBuf2[STR_BUFF]={0,};
+	char szMidBuf3[STR_BUFF]={0,};
+	char szMidBuf4[STR_BUFF]={0,};
 	char szInBuf[MAX_BUFF]={0,};
 
 	memset( szInBuf, 0 , sizeof(szInBuf) );
 
 	recv(replySocket, szInBuf, sizeof(szInBuf), 0);
-	inBufAnalyzer(szInBuf, szMidBuf1, szMidBuf2);
-	std::cout<<szMidBuf1<<"\n"<<szMidBuf2<<std::endl;
+	inBufAnalyzer(szInBuf,szMidBuf1, szMidBuf2, szMidBuf3, szMidBuf4);
+	std::cout<<"\n"<<"뿅"<<"\n\n"<<szMidBuf1<<"\n"<<szMidBuf2<<"\n"<<szMidBuf3<<"\n"<<szMidBuf4<<"\n"<<std::endl;
 
 	//////////////////////////////////////////////////////////////////////////
 	//index.html로 이동
-	int urlLen = strlen(szMidBuf1);
-	if (szMidBuf1[urlLen -1] == '/')
+	int urlLen = strlen(szMidBuf2);
+	if (szMidBuf2[urlLen -1] == '/')
 	{
-		strcat_s(szMidBuf1,STR_BUFF,"index.html");
+		strcat_s(szMidBuf2,STR_BUFF,"index.html");
 	}
 
 
 	//////////////////////////////////////////////////////////////////////////
 	//파일 불러오기 윈도우즈 api 활용
-	HANDLE hFile = CreateFileA(szMidBuf1, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+	HANDLE hFile = CreateFileA(szMidBuf2, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
 
 	int returnCode = 0;
 	char* errMessege = nullptr;
@@ -140,7 +142,7 @@ DWORD WINAPI processSocket(LPVOID param)
 
 		for (int i = 0; i < 9; ++i)
 		{
-			if ( strcmp(szMidBuf2, extensions[i].ext) == 0 )
+			if ( strcmp(szMidBuf3, extensions[i].ext) == 0 )
 				mediaType = i;
 		}
 
@@ -183,6 +185,8 @@ DWORD WINAPI processSocket(LPVOID param)
 	{
 		printf_s("%s",replyBuffer);
 		send(replySocket, fileDataBuffer, fileSizeLow,0);
+		int postLength = strlen(szMidBuf4);
+		send(replySocket, szMidBuf4, postLength,0);
 	}
 
 	closesocket(replySocket);
@@ -284,7 +288,7 @@ SOCKET makeBaseSocket( SOCKET serverSocket)
 	return serverSocket;
 }
 
-void inBufAnalyzer(char szInBuf[], char midBuffer1[], char midBuffer2[])
+void inBufAnalyzer(char szInBuf[], char midBuffer1[], char midBuffer2[], char midBuffer3[], char midBuffer4[])
 {
 	std::string fullSentence;
 	fullSentence = szInBuf;
@@ -295,140 +299,39 @@ void inBufAnalyzer(char szInBuf[], char midBuffer1[], char midBuffer2[])
 
 	//들어온 내용 조각 내기
 	std::vector<std::string> splitedBuf;
+	std::vector<std::string> splitedPostBuf;
+
 	splitedBuf.clear();
 	splitedBuf = stringSplit(fullSentence, separators);
+	//Get, Post 분석
+	std::string method = splitedBuf[0];
+	//std::cout<<method<<std::endl;
+	strcpy_s(midBuffer1, STR_BUFF, method.c_str());
+	//std::cout<<midBuffer1<<std::endl;
+	
+	//post data backup
+	if (method == "POST")
+	{
+		std::string dataBlob = splitedBuf[23];
+		separators = "\r\n";
+		splitedPostBuf = stringSplit(dataBlob, separators);
+		dataBlob = splitedPostBuf[1];
+		strcpy_s(midBuffer4, STR_BUFF, dataBlob.c_str());
+
+		//std::cout<<midBuffer4<<std::endl;
+	}
 
 	//uri부분 분석하기
 	std::string receivedUrl = "." + splitedBuf[1];
 	//std::cout<<receivedUrl<<std::endl;
-	strcpy_s(midBuffer1,STR_BUFF,receivedUrl.c_str());
+	strcpy_s(midBuffer2,STR_BUFF,receivedUrl.c_str());
 	//std::cout<<pipeBuffer[0]<<std::endl;
 
+	//extension 분석
 	std::string extension;
 	separators = ".";
 	splitedBuf = stringSplit(receivedUrl, separators);
 	//std::cout<<splitedBuf.back()<<std::endl;
-	strcpy_s(midBuffer2,STR_BUFF,splitedBuf.back().c_str());
+	strcpy_s(midBuffer3,STR_BUFF,splitedBuf.back().c_str());
 	//std::cout<<pipeBuffer[1]<<std::endl;
 }
-
-// void processing(char midBuffer1[], char midBuffer2[], std::vector<char> szBuffer)
-// {
-// 	UINT fileSize = 0;
-// 
-// 	//////////////////////////////////////////////////////////////////////////
-// 	//파일 불러오기 윈도우즈 api 활용
-// 	HANDLE hFile = CreateFileA(midBuffer1, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
-// 
-// 	//방어코드 넣을 것
-// 
-// 	DWORD fileSizeHigh;
-// 	DWORD fileSizeLow = GetFileSize(hFile, &fileSizeHigh);
-// 
-// 
-// 
-// 	DWORD numOfByteRead = 0;
-// 	ReadFile(hFile, fileDataBuffer, fileSize, &numOfByteRead, NULL);
-	
-//	CloseHandle(hFile);
-//	//////////////////////////////////////////////////////////////////////////
-//}
-
-// std::string httpReturn( std::string szBuf, char szInBuf[] )
-// {
-// 	UINT fileSize = 0;
-// 
-// 	// 	std::stringstream parseString(temp1);
-// 
-// 	// 	while (parseString >> temp2)
-// 	// 	{
-// 	// 		splitedBuf.push_back(temp2);
-// 	// 	}
-// 
-// 	//	splitedBuf = stringSplit(temp1,temp2);
-// 
-// 	// 	for (auto& toprint:splitedBuf)
-// 	// 	{
-// 	// 		printf_s("%s \n", toprint.c_str());
-// 	// 	}
-// 
-// 	
-// 
-// 
-// 	//////////////////////////////////////////////////////////////////////////
-// 	//파일 불러오기 윈도우즈 api 활용
-// 	HANDLE hFile = CreateFileA(splitedBuf[1].c_str(), GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
-// 
-// 	//방어코드 넣을 것
-// 
-// 	DWORD fileSizeHigh;
-// 	DWORD fileSizeLow = GetFileSize(hFile, &fileSizeHigh);
-// 
-// 	fileSize = fileSizeLow;
-// 
-// 	char* fileDataBuffer = (char*)malloc(fileSize+1);
-// 	memset(fileDataBuffer,0,sizeof(fileDataBuffer));
-// 
-// 
-// 
-// 
-// 	DWORD numOfByteRead = 0;
-// 	ReadFile(hFile, fileDataBuffer, fileSize, &numOfByteRead, NULL);
-	// 	fileDataBuffer[numOfByteRead] = 0;
-
-	// 	int i = 0;
-	// 	while (i<10)
-	// 	{
-	// 		printf_s("%s \n", fileDataBuffer+i*4);
-	// 		i++;
-	// 	}
-
-//	CloseHandle(hFile);
-// 	//////////////////////////////////////////////////////////////////////////
-// 
-// 	//if 텍스트인 경우
-// 	szBuf =
-// 		"HTTP/1.1 200 OK\r\n"
-// 		"Content-Type:text/html;charset=UTF-8\r\n"
-// 		"Content-Length:";
-// 
-// 	szBuf.append(std::to_string(fileSize));
-// 
-// 	szBuf.append("\r\n");
-// 	szBuf.append("\r\n");
-// 
-// 	szBuf.append(fileDataBuffer);
-// 	szBuf.append("\r\n");
-// 
-// 	return szBuf;
-// }
-
-
-// 	FILE *pFile = NULL;
-// 	errno_t openErr;
-// 	openErr = fopen_s( &pFile, splitedBuf[1].c_str(), "rb" );
-// 	
-// 		int chTemp;
-// 
-// 		int i = 0;
-// 
-// 		if ( openErr == 0 && pFile != NULL )
-// 		{
-// 			while( i < fileSizeLow )
-// 			{
-// 				chTemp = fgetc( pFile );
-// 				if (chTemp == -1)
-// 				{
-// 					int errno_code = errno;
-// 					char buffers[256];
-// 					strerror_s(buffers, 256, errno_code);
-// 					//printf_s("%s \n", buffers);
-// 				}
-// 				fileDataBuffer[i] = chTemp;
-// 				printf_s("[%d] : %x ", i, chTemp);
-// 				++i;
-// 			}
-// 			fileDataBuffer[i] = 0;
-// 			fclose( pFile );
-// 
-// 		}
